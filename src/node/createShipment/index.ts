@@ -8,23 +8,37 @@ interface ShipParams {
   shipment: Shipment
   context: ShipContext
   outputOptions?: ShipOutputOptions
+  // optional API version selector (V1 or V2). If not provided, defaults to V2.
+  apiVersion?: 'V1' | 'V2'
+  // optional custom API URL. When provided this takes precedence over apiVersion.
+  apiUrl?: string
 }
 
 /**
- * Creates a Mondial Relay shipment using API v2. The parameters are validated before sending the request.
+ * Creates a Mondial Relay shipment. The parameters are validated before sending the request.
+ * You can specify `apiVersion` ('V1' | 'V2') to use a known endpoint, or pass a custom
+ * `apiUrl` which takes precedence over `apiVersion`.
  * @param {ShipParams} params - The shipment parameters, context and output options (see the {@link [types](../../../types/ship.d.ts)}).
  * @returns The raw response from the Mondial Relay API along with parsed data, such as the etiquette PDF link.
  * @example
  * ```ts
  * const data: CreateShipmentResponse = await createShipment({
  *     // check out the library's example for the full list of parameters
+ *     apiVersion: 'V2' // or 'V1', or apiUrl: 'https://custom.endpoint/api/shipment'
  * })
  * ```
- * */
+ *
+ * Notes / assumptions:
+ * - By default this uses the V2 endpoint used previously in this file.
+ * - When selecting V1, a reasonable default URL is used, but you should prefer passing `apiUrl`
+ *   if you need an exact known V1 endpoint (the older SOAP endpoints vary by integration).
+ */
 export default async function createShipment({
   context,
   shipment,
   outputOptions,
+  apiVersion = 'V2',
+  apiUrl,
 }: ShipParams): Promise<CreateShipmentResponse> {
   // validation des données au préalable
   ShipContextSchema.parse(context)
@@ -118,7 +132,16 @@ export default async function createShipment({
 
   const xml = generateXML(data)
 
-  const API_URL = 'https://connect-api.mondialrelay.com/api/shipment'
+  // Determine endpoint: custom apiUrl takes precedence; otherwise pick based on apiVersion.
+  // Defaults:
+  // - V2 (default): official connect API used previously in this file.
+  // - V1: older (assumed) endpoint. If you need a different V1 URL, pass `apiUrl` explicitly.
+  const API_URL =
+    apiUrl ||
+    (apiVersion === 'V1'
+      ? 'https://api.mondialrelay.com/WebService'
+      : 'https://connect-api.mondialrelay.com/api/shipment')
+
   const response = await axios.post(API_URL, xml, {
     headers: {
       'Content-Type': 'application/xml',

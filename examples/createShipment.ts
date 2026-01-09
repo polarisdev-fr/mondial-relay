@@ -11,6 +11,11 @@ async function run() {
         Password: 'fill me',
         Login: 'fill me',
       },
+      // You can explicitly choose 'V1' or 'V2' (defaults to 'V2'),
+      // or provide a custom apiUrl which takes precedence.
+      // apiVersion: 'V1',
+      // apiUrl: 'https://custom.endpoint/api/shipment',
+      apiVersion: 'V2',
       shipment: {
         OrderNo: '120120',
 
