@@ -12,6 +12,7 @@ interface ShipParams {
   apiVersion?: 'V1' | 'V2'
   // optional custom API URL. When provided this takes precedence over apiVersion.
   apiUrl?: string
+  isSandbox?: boolean
 }
 
 /**
@@ -39,6 +40,7 @@ export default async function createShipment({
   outputOptions,
   apiVersion = 'V2',
   apiUrl,
+  isSandbox = false,
 }: ShipParams): Promise<CreateShipmentResponse> {
   // validation des données au préalable
   ShipContextSchema.parse(context)
@@ -138,7 +140,9 @@ export default async function createShipment({
   // - V1: older (assumed) endpoint. If you need a different V1 URL, pass `apiUrl` explicitly.
   const API_URL =
     apiUrl ||
-    (apiVersion === 'V1'
+    (isSandbox
+      ? 'https://connect-api-sandbox.mondialrelay.com/api/shipment'
+      : apiVersion === 'V1'
       ? 'https://api.mondialrelay.com/WebService'
       : 'https://connect-api.mondialrelay.com/api/shipment')
 
