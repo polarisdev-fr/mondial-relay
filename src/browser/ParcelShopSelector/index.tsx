@@ -1,6 +1,6 @@
 import React, { HTMLInputElement, useEffect, useRef } from 'react'
 
-import { ParcelShopID, ParcelShopSelected } from '../../types/parcel-shop'
+import { ParcelShopID, ParcelShopSelected } from '../../types'
 
 interface Props {
   weight?: number

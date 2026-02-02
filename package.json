@@ -72,7 +72,7 @@
     "mondial-relay"
   ],
   "peerDependencies": {
-    "react": "^18.3.1"
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",

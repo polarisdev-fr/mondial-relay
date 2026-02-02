@@ -7,15 +7,15 @@ async function run() {
     console.log(chalk.yellow('Sending a demo shipment request to Mondial Relay...'))
     const response = await createShipment({
       context: {
-        CustomerId: 'BDTEST',
-        Password: 'fill me',
-        Login: 'fill me',
+        Login: '',
+        Password: '',
       },
       // You can explicitly choose 'V1' or 'V2' (defaults to 'V2'),
       // or provide a custom apiUrl which takes precedence.
       // apiVersion: 'V1',
       // apiUrl: 'https://custom.endpoint/api/shipment',
       apiVersion: 'V2',
+      isSandbox: true,
       shipment: {
         OrderNo: '120120',
 
