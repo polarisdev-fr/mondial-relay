@@ -45,31 +45,176 @@ This package's utilities are separated in three functional domains:
 
 ## Client
 
-This package exports a React component ready to be integrated on a webpage so that the user can select the relay point he wishes:
+This package exports a React component ready to be integrated on a webpage so that the user can select the relay point they wish. **The component is fully compatible with Next.js App Router and SSR-safe.**
+
+### Next.js App Router Usage (Recommended)
+
+**Important:** The `ParcelShopSelector` component is a client-only component. It must be used in a Client Component (with `'use client'` directive).
+
+#### Basic Example
 
 ```tsx
+'use client'
+
 import { useState } from 'react'
 
 import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
-import { ParcelShopID, ParcelShopSelected } from '@polarisdev/mondial-relay/types'
+import type { ParcelShopID, ParcelShopSelected } from '@polarisdev/mondial-relay/types'
 
 export default function MondialRelayMapSelector() {
-  const [parcelShop, setParcelShop] = useState<ParcelShopSelected & ParcelShopID>()
+  const [parcelShop, setParcelShop] = useState<(ParcelShopSelected & ParcelShopID) | null>(null)
 
   return (
+    <div>
+      <ParcelShopSelector
+        brandIdAPI="BDTEST" // automatically normalized to "BDTEST  " (8 chars)
+        onParcelShopSelected={setParcelShop}
+      />
+      {parcelShop && (
+        <div>
+          <h3>Selected: {parcelShop.Nom}</h3>
+          <p>ID: {parcelShop.ParcelShopID}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+#### Advanced Example with All Options
+
+```tsx
+'use client'
+
+import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+
+export default function AdvancedSelector() {
+  return (
     <ParcelShopSelector
-      weight={3000} // (in grams) optional, filters parcel shops by package weight
-      nbResults={7} // optional (default: 7)
-      deliveryMode="24R" // optional (default: "24R)
-      brandIdAPI="BDTEST" // optional (default: "BDTEST", replace with your Brand Id API value for production usage)
-      defaultCountry="FR" // optional (default: "FR")
-      defaultPostcode="59000" // optional (default: "59000")
-      allowedCountries="FR,BE" // optional (default: "FR")
-      onParcelShopSelected={setParcelShop} // setter function when a parcel shop is clicked
+      weight={3000} // Package weight in grams (optional)
+      nbResults={7} // Number of results (default: 7)
+      deliveryMode="24R" // Delivery mode (default: "24R")
+      brandIdAPI="BDTEST" // Your Brand ID - automatically padded to 8 chars
+      defaultCountry="FR" // Default country (default: "FR")
+      defaultPostcode="59000" // Default postal code (default: "59000")
+      allowedCountries="FR,BE" // Allowed countries (default: "FR")
+      onParcelShopSelected={data => {
+        console.log('Selected parcel shop:', data)
+        // data contains: CP, ID, Nom, Pays, Ville, Adresse1, Adresse2, ParcelShopID
+      }}
     />
   )
 }
 ```
+
+### Configuration Best Practices
+
+#### Brand ID Normalization
+
+**The most common bug** is providing an incorrect Brand ID. Mondial Relay requires exactly 8 characters.
+
+✅ **Good news:** This library automatically normalizes your Brand ID!
+
+```typescript
+brandIdAPI = 'BDTEST' // ✅ Automatically becomes "BDTEST  "
+brandIdAPI = 'CC12345' // ✅ Automatically becomes "CC12345 "
+brandIdAPI = 'ABCDEFGH' // ✅ Already 8 chars, used as-is
+```
+
+⚠️ **What fails (with helpful error messages):**
+
+```typescript
+brandIdAPI = '' // ❌ Error: brandIdAPI cannot be empty
+brandIdAPI = 'TOOLONGID' // ❌ Error: brandIdAPI must be at most 8 characters
+```
+
+#### Delivery Modes
+
+Supported values: `'LCC'`, `'HOM'`, `'24R'`, `'24L'`, `'XOH'`
+
+- Default: `'24R'` (24h relay point delivery)
+- Invalid modes will trigger a console warning and fallback to `'24R'`
+
+### Server vs Client Components
+
+**Server Component (NOT SUPPORTED):**
+
+```tsx
+// ❌ This will NOT work - causes hydration errors
+import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+
+export default function ServerPage() {
+  return <ParcelShopSelector {...} /> // ❌ Error!
+}
+```
+
+**Client Component (SUPPORTED):**
+
+```tsx
+// ✅ This works perfectly
+'use client'
+
+import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+
+export default function ClientPage() {
+  return <ParcelShopSelector {...} /> // ✅ Works!
+}
+```
+
+**Using in Server Component (Extract to Client Component):**
+
+```tsx
+// app/page.tsx (Server Component)
+import MondialRelaySelector from './MondialRelaySelector' // Client Component
+
+export default function Page() {
+  return (
+    <div>
+      <h1>Choose your relay point</h1>
+      <MondialRelaySelector />
+    </div>
+  )
+}
+
+// app/MondialRelaySelector.tsx (Client Component)
+'use client'
+
+import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+
+export default function MondialRelaySelector() {
+  return <ParcelShopSelector brandIdAPI="BDTEST" onParcelShopSelected={...} />
+}
+```
+
+### Robustness Features
+
+This component includes several hardening improvements:
+
+1. **SSR Safety**: Renders `null` during server-side rendering
+2. **Script Loading**: jQuery and Mondial Relay widget loaded once globally
+3. **Idempotent**: Safe to remount without duplicate script loads
+4. **Error Handling**: Clear error messages for invalid configurations
+5. **Cleanup**: Proper DOM cleanup on component unmount
+6. **TypeScript**: Full type safety for all widget callbacks
+
+### Troubleshooting
+
+**Widget not appearing?**
+
+- Ensure you're using `'use client'` directive
+- Check console for error messages
+- Verify your Brand ID is correct
+
+**Script load errors?**
+
+- Check network connectivity
+- Verify jQuery and MR widget URLs are accessible
+- Check browser console for specific error messages
+
+**Configuration errors?**
+
+- All configuration errors are displayed inline with clear messages
+- Check console for detailed error information
 
 ## Server
 
@@ -164,6 +309,42 @@ const deliveryPrice = getDeliveryPrice(
   'FR', // the destination country
 )
 ```
+
+---
+
+## Migration Guide (v1.2.x → v2.0.0)
+
+### Breaking Changes
+
+**`brandIdAPI` is now optional with automatic normalization**
+
+Before (v1.2.x):
+
+```tsx
+// You had to manually pad to 8 characters
+<ParcelShopSelector brandIdAPI="BDTEST  " {...} />
+```
+
+After (v2.0.0):
+
+```tsx
+// Automatic normalization - just provide the ID
+<ParcelShopSelector brandIdAPI="BDTEST" {...} />
+
+// Or omit entirely to use test default
+<ParcelShopSelector onParcelShopSelected={...} />
+```
+
+### Non-Breaking Improvements
+
+- ✅ Fully SSR-safe for Next.js App Router
+- ✅ Better TypeScript types
+- ✅ Improved error messages
+- ✅ Idempotent script loading
+- ✅ Proper cleanup on unmount
+- ✅ Inline error display for invalid config
+
+**No other API changes required** - existing code continues to work!
 
 ---
 

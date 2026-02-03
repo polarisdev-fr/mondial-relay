@@ -1,34 +1,63 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import React from 'react'
 
 import { ParcelShopID, ParcelShopSelected } from '../../types'
+import { DeliveryMode } from './types'
+import { isBrowser, normalizeBrandId, validateDeliveryMode } from './utils'
 
 interface Props {
+  /** Package weight in grams (optional, filters parcel shops by weight capacity) */
   weight?: number
+  /** Number of results to display (default: 7) */
   nbResults?: number
-  brandIdAPI: string
+  /**
+   * Brand ID from Mondial Relay (will be automatically normalized to 8 characters)
+   * @example "BDTEST" becomes "BDTEST  "
+   * @default "BDTEST" (test environment)
+   */
+  brandIdAPI?: string
+  /** Default country code (default: "FR") */
   defaultCountry?: string
+  /** Default postal code (default: "59000") */
   defaultPostcode?: string
+  /** Comma-separated list of allowed countries (default: "FR") */
   allowedCountries?: string
-  deliveryMode?: 'LCC' | 'HOM' | '24R' | '24L' | 'XOH'
+  /** Delivery mode (default: "24R") */
+  deliveryMode?: DeliveryMode
+  /** Callback invoked when a parcel shop is selected */
   onParcelShopSelected(data: ParcelShopSelected & ParcelShopID): void
 }
 
-declare global {
-  interface Window {
-    $: any
-    jQuery: any
-  }
-}
-
+/**
+ * ParcelShopSelector - A React component for Mondial Relay parcel shop selection
+ *
+ * This component is designed to work with Next.js App Router and is fully SSR-safe.
+ * It loads jQuery and the Mondial Relay widget dynamically and handles cleanup properly.
+ *
+ * @example
+ * ```tsx
+ * 'use client'
+ *
+ * import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+ *
+ * export default function MyComponent() {
+ *   return (
+ *     <ParcelShopSelector
+ *       brandIdAPI="BDTEST"
+ *       onParcelShopSelected={(data) => console.log(data)}
+ *     />
+ *   )
+ * }
+ * ```
+ */
 export default function ParcelShopSelector(props: Props) {
   const {
     weight,
-    nbResults,
-    brandIdAPI,
-    deliveryMode,
+    nbResults = 7,
+    brandIdAPI = 'BDTEST',
+    deliveryMode = '24R',
     defaultCountry = 'FR',
     defaultPostcode = '59000',
     allowedCountries = 'FR',
@@ -37,29 +66,75 @@ export default function ParcelShopSelector(props: Props) {
 
   const targetRef = useRef<HTMLInputElement>(null)
   const widgetInitialized = useRef(false)
+  const [isReady, setIsReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Validate configuration on mount
+  useEffect(() => {
+    if (!isBrowser()) {
+      return
+    }
+
+    try {
+      // Validate brand ID immediately
+      normalizeBrandId(brandIdAPI)
+
+      // Validate delivery mode
+      validateDeliveryMode(deliveryMode)
+
+      setIsReady(true)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setError(errorMessage)
+      console.error(errorMessage)
+    }
+  }, [brandIdAPI, deliveryMode])
 
   useEffect(() => {
-    if (widgetInitialized.current) return
+    // Skip if not in browser or not ready or already initialized
+    if (!isBrowser() || !isReady || widgetInitialized.current || error) {
+      return
+    }
+
     widgetInitialized.current = true
 
-    injectCSS()
-    loadScripts().then(initWidget)
+    const initializeWidget = async () => {
+      try {
+        injectCSS()
+        await loadScripts()
+        initWidget()
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to initialize widget'
+        setError(errorMessage)
+        console.error('[ParcelShopSelector]', errorMessage)
+        widgetInitialized.current = false
+      }
+    }
+
+    initializeWidget()
 
     return () => {
-      // cleanup widget DOM on unmount
-      const zone = document.getElementById('Zone_Widget')
-      if (zone) zone.innerHTML = ''
+      // Cleanup widget DOM on unmount
+      if (isBrowser()) {
+        const zone = document.getElementById('Zone_Widget')
+        if (zone) {
+          zone.innerHTML = ''
+        }
+        // Reset initialization flag to allow remounting
+        widgetInitialized.current = false
+      }
     }
-  }, [])
+  }, [isReady, error, weight, nbResults, brandIdAPI, deliveryMode, defaultCountry, defaultPostcode, allowedCountries])
 
   function injectCSS() {
+    // Only inject CSS once globally
     if (document.getElementById('mr-widget-style')) return
 
     const style = document.createElement('style')
     style.id = 'mr-widget-style'
     style.innerHTML = `
       .Zone_Widget > div { width: 100%; }
-      .Target_Widget { visibility: hidden; }
+      .Target_Widget { visibility: hidden; position: absolute; pointer-events: none; }
 
       @media (max-width: 425px) {
         .MR-Widget .MRW-Results {
@@ -71,51 +146,115 @@ export default function ParcelShopSelector(props: Props) {
   }
 
   function loadScripts(): Promise<void> {
-    return new Promise(resolve => {
-      if (window.$) {
+    return new Promise((resolve, reject) => {
+      // Check if scripts are already loaded globally
+      if (window.__MR_WIDGET_SCRIPTS_LOADED__ && window.$) {
         resolve()
         return
       }
 
+      // If jQuery is already present
+      if (window.$) {
+        loadMRWidget(resolve, reject)
+        return
+      }
+
+      // Load jQuery first
       const jquery = document.createElement('script')
       jquery.src = 'https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js'
+      jquery.onerror = () => reject(new Error('Failed to load jQuery'))
       jquery.onload = () => {
-        const mr = document.createElement('script')
-        mr.src = 'https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js'
-        mr.onload = () => resolve()
-        document.body.appendChild(mr)
+        loadMRWidget(resolve, reject)
       }
       document.body.appendChild(jquery)
     })
   }
 
+  function loadMRWidget(resolve: () => void, reject: (err: Error) => void) {
+    // Check if MR widget is already loaded
+    if (window.__MR_WIDGET_SCRIPTS_LOADED__) {
+      resolve()
+      return
+    }
+
+    const mr = document.createElement('script')
+    mr.src = 'https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js'
+    mr.onerror = () => reject(new Error('Failed to load Mondial Relay widget'))
+    mr.onload = () => {
+      window.__MR_WIDGET_SCRIPTS_LOADED__ = true
+      resolve()
+    }
+    document.body.appendChild(mr)
+  }
+
   function initWidget() {
-    if (!window.$) return
+    if (!window.$ || typeof window.$ !== 'function') {
+      console.error('[ParcelShopSelector] jQuery not available')
+      return
+    }
 
-    window.$('#Zone_Widget').MR_ParcelShopPicker({
-      Target: '#Target_Widget',
-      Brand: brandIdAPI === 'BDTEST' ? 'BDTEST  ' : brandIdAPI,
-      Country: defaultCountry,
-      PostCode: defaultPostcode,
-      ColLivMod: deliveryMode || '24R',
-      NbResults: String(nbResults ?? 7),
+    // Prevent multiple initializations
+    if (window.__MR_WIDGET_INITIALIZED__) {
+      // Clear previous widget instance
+      const zone = document.getElementById('Zone_Widget')
+      if (zone) zone.innerHTML = ''
+    }
 
-      ShowResultsOnMap: true,
-      DisplayMapInfo: true,
+    try {
+      const normalizedBrand = normalizeBrandId(brandIdAPI)
 
-      AllowedCountries: allowedCountries,
-      CSS: '1',
+      window.$('#Zone_Widget').MR_ParcelShopPicker({
+        Target: '#Target_Widget',
+        Brand: normalizedBrand,
+        Country: defaultCountry,
+        PostCode: defaultPostcode,
+        ColLivMod: deliveryMode,
+        NbResults: String(nbResults),
 
-      ...(weight && { Weight: weight }),
+        ShowResultsOnMap: true,
+        DisplayMapInfo: true,
 
-      OnParcelShopSelected: (data: ParcelShopSelected) => {
-        onParcelShopSelected({
-          ...data,
-          // targetRef.current?.value can be undefined at compile time; ensure a string is provided
-          ParcelShopID: targetRef.current?.value ?? '',
-        })
-      },
-    })
+        AllowedCountries: allowedCountries,
+        CSS: '1',
+
+        ...(weight && { Weight: weight }),
+
+        OnParcelShopSelected: (data: ParcelShopSelected) => {
+          onParcelShopSelected({
+            ...data,
+            ParcelShopID: targetRef.current?.value ?? '',
+          })
+        },
+      })
+
+      window.__MR_WIDGET_INITIALIZED__ = true
+    } catch (err) {
+      console.error('[ParcelShopSelector] Failed to initialize widget:', err)
+      throw err
+    }
+  }
+
+  // SSR safety: render nothing if not in browser
+  if (!isBrowser()) {
+    return null
+  }
+
+  // Show error state if configuration is invalid
+  if (error) {
+    return (
+      <div
+        style={{
+          padding: '1rem',
+          border: '1px solid #dc3545',
+          borderRadius: '4px',
+          backgroundColor: '#f8d7da',
+          color: '#721c24',
+        }}
+      >
+        <strong>ParcelShopSelector Error:</strong>
+        <p style={{ margin: '0.5rem 0 0 0' }}>{error}</p>
+      </div>
+    )
   }
 
   return (
