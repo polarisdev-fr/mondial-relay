@@ -98,6 +98,7 @@ export default function AdvancedSelector() {
       defaultCountry="FR" // Default country (default: "FR")
       defaultPostcode="59000" // Default postal code (default: "59000")
       allowedCountries="FR,BE" // Allowed countries (default: "FR")
+      darkMode={false} // Enable dark mode (optional, also auto-detects via prefers-color-scheme)
       onParcelShopSelected={data => {
         console.log('Selected parcel shop:', data)
         // data contains: CP, ID, Nom, Pays, Ville, Adresse1, Adresse2, ParcelShopID
@@ -196,6 +197,82 @@ This component includes several hardening improvements:
 4. **Error Handling**: Clear error messages for invalid configurations
 5. **Cleanup**: Proper DOM cleanup on component unmount
 6. **TypeScript**: Full type safety for all widget callbacks
+
+### Dark Mode Support 🌙
+
+The `ParcelShopSelector` component includes comprehensive dark mode support with two activation methods:
+
+1. **Automatic Detection**: Responds to OS-level dark mode via `prefers-color-scheme`
+2. **Manual Toggle**: Control via the `darkMode` prop
+
+#### Automatic Dark Mode
+
+```tsx
+'use client'
+
+import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+
+export default function Selector() {
+  // Automatically detects system dark mode preference
+  return <ParcelShopSelector brandIdAPI="BDTEST" onParcelShopSelected={data => console.log(data)} />
+}
+```
+
+#### Manual Dark Mode Toggle
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+
+export default function Selector() {
+  const [isDark, setIsDark] = useState(false)
+
+  return (
+    <>
+      <button onClick={() => setIsDark(!isDark)}>Toggle Dark Mode</button>
+      <ParcelShopSelector brandIdAPI="BDTEST" darkMode={isDark} onParcelShopSelected={data => console.log(data)} />
+    </>
+  )
+}
+```
+
+#### Integration with Theme Providers
+
+Works seamlessly with popular theme libraries like `next-themes`:
+
+```tsx
+'use client'
+
+import { ParcelShopSelector } from '@polarisdev/mondial-relay/browser'
+
+import { useTheme } from 'next-themes'
+
+export default function Selector() {
+  const { theme } = useTheme()
+
+  return (
+    <ParcelShopSelector
+      brandIdAPI="BDTEST"
+      darkMode={theme === 'dark'}
+      onParcelShopSelected={data => console.log(data)}
+    />
+  )
+}
+```
+
+**Features:**
+
+- ✅ WCAG AA compliant contrast ratios
+- ✅ Smooth transitions between light/dark modes
+- ✅ Styled map integration with dark filters
+- ✅ No flash of unstyled content (FOUC)
+- ✅ Mobile-responsive design preserved
+- ✅ Full accessibility maintained
+
+For detailed implementation notes, see [DARK_MODE_IMPLEMENTATION.md](./DARK_MODE_IMPLEMENTATION.md).
 
 ### Troubleshooting
 
