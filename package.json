@@ -1,6 +1,6 @@
 {
   "name": "@polarisdev/mondial-relay",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "author": "Polaris DEV <support@polarisdev.fr> (https://polarisdev.fr)",
   "description": "MondialRelay API web services made simple using Typescript",
   "license": "MIT",
@@ -52,10 +52,10 @@
   "files": [
     "dist"
   ],
-  "homepage": "https://github.com/fullgreengn/mondial-relay#readme",
+  "homepage": "https://github.com/polarisdev-fr/mondial-relay#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fullgreengn/mondial-relay.git"
+    "url": "git+https://github.com/polarisdev-fr/mondial-relay.git"
   },
   "scripts": {
     "demo:api_v1": "npx ts-node ./examples/api_v1/index.ts",
